@@ -29,11 +29,12 @@ entity main is
       clk_main_speed_i        : in  natural;
 
       -- Video output
+      video_clk_o             : out std_logic;
       video_ce_o              : out std_logic;
       video_ce_ovl_o          : out std_logic;
-      video_red_o             : out std_logic_vector(2 downto 0);
-      video_green_o           : out std_logic_vector(2 downto 0);
-      video_blue_o            : out std_logic_vector(1 downto 0);
+      video_red_o             : out std_logic_vector(3 downto 0);
+      video_green_o           : out std_logic_vector(3 downto 0);
+      video_blue_o            : out std_logic_vector(3 downto 0);
       video_vs_o              : out std_logic;
       video_hs_o              : out std_logic;
       video_hblank_o          : out std_logic;
@@ -109,10 +110,21 @@ signal hs_address       : std_logic_vector(15 downto 0);
 signal hs_data_in       : std_logic_vector(7 downto 0);
 signal hs_data_out      : std_logic_vector(7 downto 0);
 signal hs_write_enable  : std_logic;
+signal hs_access_read   : std_logic;
+signal hs_access_write  : std_logic;
 
 signal hs_pause         : std_logic;
 signal options          : std_logic_vector(1 downto 0);
 signal self_test        : std_logic;
+
+signal HPOS             : std_logic_vector(8 downto 0);
+signal VPOS             : std_logic_vector(8 downto 0);        
+signal PCLK             : std_logic;
+signal POUT             : std_logic_vector(11 downto 0);
+signal tmp_RGB          : std_logic_vector(11 downto 0);
+signal oPIX             : std_logic_vector(7 downto 0);
+signal oSND             : std_logic_vector(7 downto 0);
+
 
 constant C_MENU_OSMPAUSE     : natural := 2;
 constant C_MENU_OSMDIM       : natural := 3;
@@ -125,17 +137,28 @@ constant m65_5             : integer := 16; --Insert coin 1
 constant m65_6             : integer := 19; --Insert coin 2
 
 -- Offer some keyboard controls in addition to Joy 1 Controls
-constant m65_a             : integer := 10; --Player left
-constant m65_d             : integer := 18; --Player right
-constant m65_up_crsr       : integer := 73; --Player fire
+constant m65_up_crsr       : integer := 73; -- Player up 1
+constant m65_vert_crsr     : integer := 7;  -- Player down 1
+constant m65_left_crsr     : integer := 74; -- Player left 1
+constant m65_horz_crsr     : integer := 2;  -- Player right 1
+constant m65_space         : integer := 60; -- Trigger 1
+constant m65_left_shift    : integer := 15; -- Trigger 2 
+
+constant m65_i             : integer := 33; -- Player up 2
+constant m65_j             : integer := 34; -- Player left 2
+constant m65_k             : integer := 37; -- Player right 2
+constant m65_l             : integer := 42; -- Plpayer down 2
 
 -- Pause, credit button & test mode
-constant m65_p             : integer := 41; --Pause button
-constant m65_s             : integer := 13; --Service 1
-constant m65_capslock      : integer := 72; --Service Mode
-constant m65_help          : integer := 67; --Help key
+constant m65_p             : integer := 41; -- Pause button
+constant m65_s             : integer := 13; -- Service 1
+constant m65_capslock      : integer := 72; -- Service Mode
+constant m65_help          : integer := 67; -- Help key
+
 
 begin
+    
+    tmp_RGB <= video_blue_o & video_green_o & video_red_o;
    
     audio_left_o(15) <= not audio(15);
     audio_left_o(14 downto 0) <= signed(audio(14 downto 0));
@@ -145,6 +168,7 @@ begin
     options(0) <= osm_control_i(C_MENU_OSMPAUSE);
     options(1) <= osm_control_i(C_MENU_OSMDIM);
     flip_screen <= osm_control_i(C_MENU_FLIP);
+    
     
     -- if pause_cpu is not asserted, it's safe to enter the service/test mode.
     -- this prevents undesired state of the game when pause_cpu is asserted whilst self_test is enabled.
@@ -158,63 +182,80 @@ begin
   
         end if;
     end process;
-
-    i_galaga : entity work.galaga
+    
+    
+    -- video timing
+    i_hvgen : entity work.hvgen
     port map (
     
-    clock_18   => clk_main_i,
-    reset      => reset,
+    HPOS      => HPOS,
+    VPOS      => VPOS,
+    PCLK      => PCLK,
+    iRGB      => POUT,
+    oRGB      => tmp_RGB,
+    HBLK      => video_hblank_o,
+    VBLK      => video_vblank_o,
+    HSYN      => video_hs_o,
+    VSYN      => video_vs_o
     
-    video_r    => video_red_o,
-    video_g    => video_green_o,
-    video_b    => video_blue_o,
+    );
+    -- to do.
+    --ce_vid <= PCLK;
+
+    i_digdug : entity work.fpga_digdug
+    port map (
     
-    --video_csync => open,
-    video_hs    => video_hs_o,
-    video_vs    => video_vs_o,
-    blank_h     => video_hblank_o,
-    blank_v     => video_vblank_o,
     
-    audio       => audio,
+    RESET      => reset,
+    MCLK       => video_clk_o,
     
-    self_test  => self_test,
-    service    => not keyboard_n(m65_s),
-    coin1      => not keyboard_n(m65_5),
-    coin2      => not keyboard_n(m65_6),
-    start1     => not keyboard_n(m65_1),
-    start2     => not keyboard_n(m65_2),
-    up1        => not joy_1_up_n_i,
-    down1      => not joy_1_down_n_i,
-    left1      => not joy_1_left_n_i or not keyboard_n(m65_a),
-    right1     => not joy_1_right_n_i or not keyboard_n(m65_d),
-    fire1      => not joy_1_fire_n_i or not keyboard_n(m65_up_crsr),
-    -- player 2 joystick is only active in cocktail/table mode.
-    up2        => not joy_2_up_n_i,
-    down2      => not joy_2_down_n_i,
-    left2      => not joy_2_left_n_i,
-    right2     => not joy_2_right_n_i,
-    fire2      => not joy_2_fire_n_i,
-    flip_screen => flip_screen,
+    INP0(0)    => not keyboard_n(m65_s),                            -- service button
+    INP0(1)    => '1',                                              -- ??
+    INP0(2)    => not keyboard_n(m65_6),                            -- coin 2
+    INP0(3)    => not keyboard_n(m65_5),                            -- coin 1
+    INP0(4)    => not keyboard_n(m65_2),                            -- start 2
+    INP0(5)    => not keyboard_n(m65_1),                            -- start 1                 
+    INP0(6)    => not joy_2_fire_n_i or keyboard_n(m65_left_shift), -- Trigger 2
+    INP0(7)    => not joy_1_fire_n_i or not keyboard_n(m65_space),  -- Trigger 1
+    INP1(0)    => not joy_2_left_n_i or not keyboard_n(m65_j), 
+    INP1(1)    => not joy_2_down_n_i or not keyboard_n(m65_k),
+    INP1(2)    => not joy_2_right_n_i or not keyboard_n(m65_j),
+    INP1(3)    => not joy_2_right_n_i or not keyboard_n(m65_l),  
+    INP1(4)    => not joy_1_left_n_i or not keyboard_n(m65_left_crsr), 
+    INP1(5)    => not joy_1_down_n_i or not keyboard_n(m65_vert_crsr),
+    INP1(6)    => not joy_1_right_n_i or not keyboard_n(m65_horz_crsr),
+    INP1(7)    => not joy_1_right_n_i or not keyboard_n(m65_up_crsr),
     
-    -- dip a and b are labelled back to front in MiSTer core, hence this workaround.
-    dip_switch_a    => not dsw_b_i,
-    dip_switch_b    => not dsw_a_i,
-    h_offset   => status(27 downto 24),
-    v_offset   => status(31 downto 28),
-    pause      => pause_cpu or pause_i,
+    DSW0       => dsw_a_i,
+    DSW1       => dsw_b_i,
+    
+    PH         => HPOS,
+    PV         => VPOS,
+    PCLK       => PCLK,
+    POUT       => oPIX,
+    SOUT       => oSND,
+    
+    dn_clk     => dn_clk_i, 
+    ROMCL      => clk_main_i,
+    ROMAD      => dn_addr_i,
+    ROMDT      => dn_data_i,
+    ROMEN      => dn_wr_i,
+    
+    V_FLIP     => '0',
    
+    pause      => pause_cpu or pause_i,
+    
     hs_address => hs_address,
-    hs_data_out => hs_data_out,
+    hs_data_out=> hs_data_out,
     hs_data_in => hs_data_in,
     hs_write   => hs_write_enable,
-    
-    -- @TODO: ROM loading. For now we will hardcode the ROMs
-    -- No dynamic ROM loading as of yet
-    dn_clk     => dn_clk_i,
-    dn_addr    => dn_addr_i,
-    dn_data    => dn_data_i,
-    dn_wr      => dn_wr_i
+    hs_access  => hs_access_read or hs_access_write
+  
  );
+ 
+    POUT <= oPix(7 downto 6) & "00" & oPix(5 downto 3) & "0" & oPix(2 downto 0) & "0";
+    audio <= oSND & "00000000";
+    
  
     i_pause : entity work.pause
      generic map (

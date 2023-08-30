@@ -185,8 +185,8 @@ constant SEL_CFG_FILE      : std_logic_vector(15 downto 0) := x"0101";
 
 -- START YOUR CONFIGURATION BELOW THIS LINE
 
-constant DIR_START         : string := "/arcade/galaga";
-constant CFG_FILE          : string := "/arcade/galaga/glgcfg";
+constant DIR_START         : string := "/arcade/digdug";
+constant CFG_FILE          : string := "/arcade/digdug/ddcfg";
 
 --------------------------------------------------------------------------------------------------------------------
 -- General configuration settings: Reset, Pause, OSD behavior, Ascal, etc. (Selector 0x0110)
