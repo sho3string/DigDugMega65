@@ -235,8 +235,7 @@ begin
     POUT       => oPIX,
     SOUT       => oSND,
     
-    dn_clk     => dn_clk_i, 
-    ROMCL      => clk_main_i,
+    ROMCL      => dn_clk_i,
     ROMAD      => dn_addr_i,
     ROMDT      => dn_data_i,
     ROMEN      => dn_wr_i,
