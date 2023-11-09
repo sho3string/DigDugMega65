@@ -165,7 +165,7 @@ signal video_rst           : std_logic;
 -- main_clk (MiSTer core's clock)
 ---------------------------------------------------------------------------------------------
 
--- Unprocessed video output from the Galaga core
+-- Unprocessed video output from the DigDug core
 signal main_video_red      : std_logic_vector(3 downto 0);   
 signal main_video_green    : std_logic_vector(3 downto 0);
 signal main_video_blue     : std_logic_vector(3 downto 0);
@@ -240,7 +240,7 @@ constant C_MENU_NAMCO_DSWA_6  : natural := 77;
 constant C_MENU_NAMCO_DSWA_7  : natural := 78;
 
 
--- Galaga specific video processing
+-- Galaga specific video processin
 signal div                    : std_logic_vector(2 downto 0);
 signal dim_video              : std_logic;
 signal dsw_a_i                : std_logic_vector(7 downto 0);
@@ -283,7 +283,7 @@ signal qnice_dn_wr      : std_logic;
 
 -- 320x288 @ 50 Hz
 constant C_320_288_50 : video_modes_t := (
-   CLK_KHZ     => 6000,       -- 6 MHz
+   CLK_KHZ     => 6140,       -- 6 MHz
    CEA_CTA_VIC => 0,
    ASPECT      => "01",       -- aspect ratio: 01=4:3, 10=16:9: "01" for SVGA
    PIXEL_REP   => '0',        -- no pixel repetition
@@ -314,15 +314,15 @@ begin
          sys_clk_i         => CLK,             -- expects 100 MHz
          sys_rstn_i        => RESET_M2M_N,     -- Asynchronous, asserted low
          
-         main_clk_o        => main_clk,        -- Galaga's 18 MHz main clock
-         main_rst_o        => main_rst,        -- Galaga's reset, synchronized
+         main_clk_o        => main_clk,        
+         main_rst_o        => main_rst,        
          
-         video_clk_o       => video_clk,       -- video clock 48 MHz
-         video_rst_o       => video_rst        -- video reset, synchronized
+         video_clk_o       => video_clk,       
+         video_rst_o       => video_rst        
       
       ); -- clk_gen
       
-      
+ 
    i_cdc_qnice2video : xpm_cdc_array_single
       generic map (
          WIDTH => 1
@@ -333,14 +333,12 @@ begin
          dest_clk          => video_clk,
          dest_out(0)       => video_rot90_flag
       ); -- i_cdc_qnice2video
-    
-   
 
    main_clk_o   <= main_clk;
    main_rst_o   <= main_rst;
    video_clk_o  <= video_clk;
    video_rst_o  <= video_rst;
-   
+  
    
    dsw_a_i <= main_osm_control_i(C_MENU_MIDWAY_DSWA_7) &
               main_osm_control_i(C_MENU_MIDWAY_DSWA_6) &
@@ -444,11 +442,42 @@ begin
          dsw_b_i              => dsw_b_i
       ); -- i_main
 
-    process (video_clk) -- 48 MHz
+    /*process (video_clk) -- 48 MHz
     begin
         if rising_edge(video_clk) then
            old_clk <= ce_vid;
-           video_ce <= ce_vid and not ce_vid;
+           video_ce <= old_clk and not ce_vid;
+        end if;
+    end process;*/
+    
+    process (video_clk) -- 24 MHz
+    begin
+        if rising_edge(video_clk) then
+            div <= std_logic_vector(unsigned(div) + 1);
+           
+            if div = "011" then
+                video_ce <= '1'; -- 6 MHz
+                div <= "000";
+            else
+                video_ce <= '0';
+            end if;
+    
+            if div = "000" then
+                video_ce_ovl_o <= '1'; -- 24 MHz
+            else
+                video_ce_ovl_o <= '0';
+            end if;
+               
+            video_red   <= main_video_red   & main_video_red;
+            video_green <= main_video_green & main_video_green;
+            video_blue  <= main_video_blue  & main_video_blue;
+           
+            video_hs     <= not main_video_hs;
+            video_vs     <= not main_video_vs;
+            video_hblank <= main_video_hblank;
+            video_vblank <= main_video_vblank;
+            video_de     <= not (main_video_hblank or main_video_vblank);
+
         end if;
     end process;
     

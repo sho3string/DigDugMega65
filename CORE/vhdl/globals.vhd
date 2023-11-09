@@ -44,7 +44,7 @@ constant QNICE_FIRMWARE           : string  := QNICE_FIRMWARE_M2M;
 -- Galaga core's clock speed
 -- Actual clock is 18_432 Mhz ( see MAME driver - galaga.cpp ).
 -- MiSTer uses 18Mhz
-constant CORE_CLK_SPEED       : natural := 18_000_000;   -- Galaga's main clock is 18 MHz 
+constant CORE_CLK_SPEED       : natural := 49_147_730;   -- Main clock 49 MHz 
 
 -- System clock speed (crystal that is driving the FPGA) and QNICE clock speed
 -- !!! Do not touch !!!
@@ -184,7 +184,7 @@ constant SND_MAIN_START               : std_logic_vector(15 downto 0) := SPR_MAI
 constant C_CRTROMS_AUTO_NUM      : natural := 11;                                       -- Amount of automatically loadable ROMs and carts, if more tha    n 3: also adjust CRTROM_MAN_MAX in M2M/rom/shell_vars.asm, Needs to be in sync with config.vhd. Maximum is 16
 constant C_CRTROMS_AUTO_NAMES    : string  := ROM1_MAIN_CPU_ROM & ROM2_SUB_CPU_ROM & ROM3_SND_CPU_ROM &
                                               GFX1_FONT_ROM & GFX2_SPR_ROM & GFX3_BGS_ROM & GFX4_BGC_ROM &
-                                              PROM_PAL & PROM_SPR & PROM_SND &
+                                              PROM_PAL & PROM_CHR & PROM_SPR & PROM_SND &
                                               ENDSTR;                             
                                               
 constant C_CRTROMS_AUTO          : crtrom_buf_array := ( 

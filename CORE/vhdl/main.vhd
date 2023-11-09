@@ -39,7 +39,7 @@ entity main is
       video_hs_o              : out std_logic;
       video_hblank_o          : out std_logic;
       video_vblank_o          : out std_logic;
-
+     
       -- Audio output (Signed PCM)
       audio_left_o            : out signed(15 downto 0);
       audio_right_o           : out signed(15 downto 0);
@@ -117,13 +117,13 @@ signal hs_pause         : std_logic;
 signal options          : std_logic_vector(1 downto 0);
 signal self_test        : std_logic;
 
-signal HPOS             : std_logic_vector(8 downto 0);
-signal VPOS             : std_logic_vector(8 downto 0);        
-signal PCLK             : std_logic;
-signal POUT             : std_logic_vector(11 downto 0);
-signal tmp_RGB          : std_logic_vector(11 downto 0);
-signal oPIX             : std_logic_vector(7 downto 0);
+
 signal oSND             : std_logic_vector(7 downto 0);
+signal POUT             : std_logic_vector(11  downto 0);
+signal oPix             : std_logic_vector(7  downto 0);
+signal oRGB             : std_logic_vector(11 downto 0);
+signal PCLK_EN          : std_logic;
+signal HPOS,VPOS        : std_logic_vector(8 downto 0);
 
 
 constant C_MENU_OSMPAUSE     : natural := 2;
@@ -155,11 +155,8 @@ constant m65_s             : integer := 13; -- Service 1
 constant m65_capslock      : integer := 72; -- Service Mode
 constant m65_help          : integer := 67; -- Help key
 
-
 begin
     
-    tmp_RGB <= video_blue_o & video_green_o & video_red_o;
-   
     audio_left_o(15) <= not audio(15);
     audio_left_o(14 downto 0) <= signed(audio(14 downto 0));
     audio_right_o(15) <= not audio(15);
@@ -169,10 +166,14 @@ begin
     options(1) <= osm_control_i(C_MENU_OSMDIM);
     flip_screen <= osm_control_i(C_MENU_FLIP);
     
+    PCLK_EN <=  video_ce_o;
+    oRGB    <=  video_blue_o & video_green_o & video_red_o;
+    POUT    <= oPIX(7 downto 6) & "00" & oPIX(5 downto 3) & '0' & oPIX(2 downto 0) & '0';
+    audio   <= oSND & "00000000";
     
     -- if pause_cpu is not asserted, it's safe to enter the service/test mode.
     -- this prevents undesired state of the game when pause_cpu is asserted whilst self_test is enabled.
-    
+    /*
     process (clk_main_i)
         begin
         if rising_edge(clk_main_i) then
@@ -182,32 +183,28 @@ begin
   
         end if;
     end process;
+    */
     
-    
-    -- video timing
     i_hvgen : entity work.hvgen
-    port map (
-    
-    HPOS      => HPOS,
-    VPOS      => VPOS,
-    PCLK      => PCLK,
-    iRGB      => POUT,
-    oRGB      => tmp_RGB,
-    HBLK      => video_hblank_o,
-    VBLK      => video_vblank_o,
-    HSYN      => video_hs_o,
-    VSYN      => video_vs_o
-    
-    );
-    -- to do.
-    --ce_vid <= PCLK;
+      port map (
+         
+         PCLK       => PCLK_EN,
+         iRGB       => POUT,
+         oRGB       => oRGB,
+         HBLK       => video_hblank_o,
+         VBLK       => video_vblank_o,
+         HSYN       => video_hs_o,
+         VSYN       => video_vs_o,
+         HPOS       => HPOS,
+         VPOS       => VPOS
+     );
 
     i_digdug : entity work.fpga_digdug
     port map (
     
     
     RESET      => reset,
-    MCLK       => video_clk_o,
+    MCLK       => clk_main_i,
     
     INP0(0)    => not keyboard_n(m65_s),                            -- service button
     INP0(1)    => '1',                                              -- ??
@@ -231,7 +228,7 @@ begin
     
     PH         => HPOS,
     PV         => VPOS,
-    PCLK       => PCLK,
+    PCLK       => PCLK_EN,
     POUT       => oPIX,
     SOUT       => oSND,
     
@@ -252,21 +249,17 @@ begin
   
  );
  
-    POUT <= oPix(7 downto 6) & "00" & oPix(5 downto 3) & "0" & oPix(2 downto 0) & "0";
-    audio <= oSND & "00000000";
-    
- 
+
     i_pause : entity work.pause
      generic map (
      
-        RW  => 3,
-        GW  => 3,
-        BW  => 2,
-        CLKSPD => 18
+        RW  => 4,
+        GW  => 4,
+        BW  => 4,
+        CLKSPD => 24
         
      )         
      port map (
-     
          clk_sys        => clk_main_i,
          reset          => reset,
          user_button    => keyboard_n(m65_p),
