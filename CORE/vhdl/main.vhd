@@ -122,7 +122,6 @@ signal oSND             : std_logic_vector(7 downto 0);
 signal POUT             : std_logic_vector(11  downto 0);
 signal oPix             : std_logic_vector(7  downto 0);
 signal oRGB             : std_logic_vector(11 downto 0);
-signal PCLK_EN          : std_logic;
 signal HPOS,VPOS        : std_logic_vector(8 downto 0);
 
 
@@ -166,29 +165,16 @@ begin
     options(1) <= osm_control_i(C_MENU_OSMDIM);
     flip_screen <= osm_control_i(C_MENU_FLIP);
     
-    PCLK_EN <=  video_ce_o;
-    oRGB    <=  video_blue_o & video_green_o & video_red_o;
+    oRGB    <= video_blue_o & video_green_o & video_red_o;
     POUT    <= oPIX(7 downto 6) & "00" & oPIX(5 downto 3) & '0' & oPIX(2 downto 0) & '0';
     audio   <= oSND & "00000000";
     
-    -- if pause_cpu is not asserted, it's safe to enter the service/test mode.
-    -- this prevents undesired state of the game when pause_cpu is asserted whilst self_test is enabled.
-    /*
-    process (clk_main_i)
-        begin
-        if rising_edge(clk_main_i) then
-            if  not pause_cpu then 
-                    self_test <= '1' when not keyboard_n(m65_capslock) else '0';
-            end if;
   
-        end if;
-    end process;
-    */
-    
     i_hvgen : entity work.hvgen
       port map (
          
-         PCLK       => PCLK_EN,
+         --PCLK       => PCLK_EN,
+         PCLK       => video_ce_o,
          iRGB       => POUT,
          oRGB       => oRGB,
          HBLK       => video_hblank_o,
@@ -207,7 +193,7 @@ begin
     MCLK       => clk_main_i,
     
     INP0(0)    => not keyboard_n(m65_s),                            -- service button
-    INP0(1)    => '1',                                              -- ??
+    INP0(1)    => '0',                                              -- ??
     INP0(2)    => not keyboard_n(m65_6),                            -- coin 2
     INP0(3)    => not keyboard_n(m65_5),                            -- coin 1
     INP0(4)    => not keyboard_n(m65_2),                            -- start 2
@@ -228,7 +214,7 @@ begin
     
     PH         => HPOS,
     PV         => VPOS,
-    PCLK       => PCLK_EN,
+    PCLK       => video_ce_o,
     POUT       => oPIX,
     SOUT       => oSND,
     

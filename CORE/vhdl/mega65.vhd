@@ -24,10 +24,10 @@ port (
    RESET_M2M_N             : in  std_logic;              -- Debounced system reset in system clock domain
 
    -- Share clock and reset with the framework
-   main_clk_o              : out std_logic;              -- Galaga's 18 MHz main clock
-   main_rst_o              : out std_logic;              -- Galaga's reset, synchronized
+   main_clk_o              : out std_logic;              -- 49.147 MHz main clock
+   main_rst_o              : out std_logic;              -- reset, synchronized
    
-   video_clk_o             : out std_logic;              -- video clock 48 MHz
+   video_clk_o             : out std_logic;              -- 24.573 MHz video clock
    video_rst_o             : out std_logic;              -- video reset, synchronized
 
    --------------------------------------------------------------------------------------------------------
@@ -240,24 +240,25 @@ constant C_MENU_NAMCO_DSWA_6  : natural := 77;
 constant C_MENU_NAMCO_DSWA_7  : natural := 78;
 
 
--- Galaga specific video processin
-signal div                    : std_logic_vector(2 downto 0);
-signal dim_video              : std_logic;
-signal dsw_a_i                : std_logic_vector(7 downto 0);
-signal dsw_b_i                : std_logic_vector(7 downto 0);
+-- DigDug's specific video processin
+signal div              : std_logic_vector(2 downto 0);
+signal dim_video        : std_logic;
+signal dsw_a_i          : std_logic_vector(7 downto 0);
+signal dsw_b_i          : std_logic_vector(7 downto 0);
 
-signal old_clk      : std_logic;
-signal ce_vid       : std_logic;
+signal old_clk          : std_logic;
+signal ce_vid           : std_logic;
+signal ce_pix           : std_logic;
 
-signal video_ce     : std_logic;
-signal video_red    : std_logic_vector(7 downto 0);
-signal video_green  : std_logic_vector(7 downto 0);
-signal video_blue   : std_logic_vector(7 downto 0);
-signal video_vs     : std_logic;
-signal video_hs     : std_logic;
-signal video_vblank : std_logic;
-signal video_hblank : std_logic;
-signal video_de     : std_logic;
+signal video_ce         : std_logic;
+signal video_red        : std_logic_vector(7 downto 0);
+signal video_green      : std_logic_vector(7 downto 0);
+signal video_blue       : std_logic_vector(7 downto 0);
+signal video_vs         : std_logic;
+signal video_hs         : std_logic;
+signal video_vblank     : std_logic;
+signal video_hblank     : std_logic;
+signal video_de         : std_logic;
 
 signal video_rot_red    : std_logic_vector(7 downto 0);
 signal video_rot_green  : std_logic_vector(7 downto 0);
@@ -281,6 +282,7 @@ signal qnice_dn_addr    : std_logic_vector(15 downto 0);
 signal qnice_dn_data    : std_logic_vector(7 downto 0);
 signal qnice_dn_wr      : std_logic;
 
+
 -- 320x288 @ 50 Hz
 constant C_320_288_50 : video_modes_t := (
    CLK_KHZ     => 6140,       -- 6 MHz
@@ -288,7 +290,7 @@ constant C_320_288_50 : video_modes_t := (
    ASPECT      => "01",       -- aspect ratio: 01=4:3, 10=16:9: "01" for SVGA
    PIXEL_REP   => '0',        -- no pixel repetition
    H_PIXELS    => 320,        -- horizontal display width in pixels
-   V_PIXELS    => 288,        -- vertical display width in rows
+   V_PIXELS    => 289,        -- vertical display width in rows
    H_PULSE     => 28,         -- horizontal sync pulse width in pixels
    H_BP        => 28,         -- horizontal back porch width in pixels
    H_FP        => 8,          -- horizontal front porch width in pixels
@@ -398,7 +400,7 @@ begin
          -- Video output
          -- This is PAL 720x576 @ 50 Hz (pixel clock 27 MHz), but synchronized to main_clk (54 MHz).
          video_clk_o          => video_clk_o,
-         video_ce_o           => open,
+         video_ce_o           => ce_vid,
          video_ce_ovl_o       => open,
          video_red_o          => main_video_red,
          video_green_o        => main_video_green,
@@ -441,37 +443,31 @@ begin
          dsw_a_i              => dsw_a_i,
          dsw_b_i              => dsw_b_i
       ); -- i_main
-
-    /*process (video_clk) -- 48 MHz
-    begin
-        if rising_edge(video_clk) then
-           old_clk <= ce_vid;
-           video_ce <= old_clk and not ce_vid;
-        end if;
-    end process;*/
     
     process (video_clk) -- 24 MHz
     begin
         if rising_edge(video_clk) then
-            div <= std_logic_vector(unsigned(div) + 1);
-           
-            if div = "011" then
-                video_ce <= '1'; -- 6 MHz
-                div <= "000";
-            else
-                video_ce <= '0';
-            end if;
     
+            old_clk <= ce_vid;
+            ce_pix  <= old_clk and (not ce_vid);
+            
+            video_ce_ovl_o <= '0';
+            div <= std_logic_vector(unsigned(div) + 1);
             if div = "000" then
                 video_ce_ovl_o <= '1'; -- 24 MHz
-            else
-                video_ce_ovl_o <= '0';
             end if;
-               
-            video_red   <= main_video_red   & main_video_red;
-            video_green <= main_video_green & main_video_green;
-            video_blue  <= main_video_blue  & main_video_blue;
-           
+            
+            if dim_video = '1' then
+                video_red   <= "0" & main_video_red   & main_video_red(3 downto 1);
+                video_green <= "0" & main_video_green & main_video_green(3 downto 1);
+                video_blue  <= "0" & main_video_blue  & main_video_blue(3 downto 1);  
+            else   
+                video_red   <= main_video_red   & main_video_red;
+                video_green <= main_video_green & main_video_green;
+                video_blue  <= main_video_blue  & main_video_blue;
+            end if;
+        
+            
             video_hs     <= not main_video_hs;
             video_vs     <= not main_video_vs;
             video_hblank <= main_video_hblank;
@@ -491,7 +487,7 @@ begin
            video_hs_o       <= video_rot_hs;
            video_hblank_o   <= video_rot_hblank;
            video_vblank_o   <= video_rot_vblank;
-           video_ce_o       <= video_ce;
+           video_ce_o       <= ce_pix;
        else
            video_red_o      <= video_red;
            video_green_o    <= video_green;
@@ -500,53 +496,16 @@ begin
            video_hs_o       <= video_hs;
            video_hblank_o   <= video_hblank;
            video_vblank_o   <= video_vblank;
-           video_ce_o       <= video_ce;           
+           video_ce_o       <= ce_pix;
        end if;
     end process;
-
-    -- The video output from the core has the following (empirically determined)
-    -- parameters:
-    -- CLK_KHZ     => 6000,       -- 6 MHz
-    -- H_PIXELS    => 288,        -- horizontal display width in pixels
-    -- V_PIXELS    => 224,        -- vertical display width in rows
-    -- H_PULSE     => 29,         -- horizontal sync pulse width in pixels
-    -- H_BP        => 44,         -- horizontal back porch width in pixels
-    -- H_FP        => 23,         -- horizontal front porch width in pixels
-    -- V_PULSE     => 8,          -- vertical sync pulse width in rows
-    -- V_BP        => 12,         -- vertical back porch width in rows
-    -- V_FP        => 20,         -- vertical front porch width in rows
-    -- This corresponds to a horizontal sync frequency of 15.625 kHz
-    -- and a vertical sync frequency of 59.19 Hz.
-    --
-    -- After screen rotation the visible part therefore has a size of 224x288 pixels.
-    -- In order to display this image we need a screen resolution that is large enough.
-    -- I've chosen a down-scaled version of the standard 576p. The important values here
-    -- are the horizontal sync frequency of 15.625 kHz and the fact that I'm keeping
-    -- the pixel clock rate of 6 MHz.
-    -- The calculation is as follows: The standard 576p has the following parameters:
-    -- (see M2M/vhdl/av_pipeline/video_modes_pkg.vhd):
-    -- * pixel clock rate of 27 MHz.
-    -- * horizontal sync frequency of 31.25 kHz.
-    -- * horizontal scan line time of 1000/31.25 = 32 us.
-    -- * horizontal visible pixels 720.
-    -- * horizontal visible time 720/27 = 26.67 us.
-    -- In a non-scandoubled domain the numbers change as follows:
-    -- * horizontal sync frequency of 31.25/2 = 15.625 kHz.
-    -- * horizontal scan line time of 32*2 = 64 us.
-    -- * horizontal visible time 26.67*2 = 53.33 us.
-    -- Since we are sticking with a 6 MHz pixel rate, we get:
-    -- * horizontal visible pixels 53.33*6 = 320.
-    -- Therefore, we have a visible screen area of 320x288 pixels, and our rotated image
-    -- of 224x288 must be centered in here. This leaves a border of (320-224)/2 = 48
-    -- pixels on either side.
-    -- Nevertheless, on my VGA monitor, this video signal is recognized as
-    -- 720x288 @ 50Hz.
-
+    
+   
     i_screen_rotate : entity work.screen_rotate
        port map (
           --inputs
           CLK_VIDEO      => video_clk,
-          CE_PIXEL       => video_ce,
+          CE_PIXEL       => ce_pix,
           VGA_R          => video_red,
           VGA_G          => video_green,
           VGA_B          => video_blue,
@@ -587,7 +546,7 @@ begin
          ddram_din_i      => ddram_data(31 downto 0),
          ddram_we_i       => ddram_we,
          video_clk_i      => video_clk,
-         video_ce_i       => video_ce,
+         video_ce_i       => ce_pix,
          video_red_o      => video_rot_red,
          video_green_o    => video_rot_green,
          video_blue_o     => video_rot_blue,
